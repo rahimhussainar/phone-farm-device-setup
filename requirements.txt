@@ -1,3 +1,22 @@
-pandas>=2.0.0
-openpyxl>=3.1.0
-lxml>=4.9.0
+# Core dependencies
+adb-shell>=0.4.4
+uiautomator2>=2.16.0
+pure-python-adb>=0.3.0.dev0
+
+# Terminal UI
+rich>=13.7.0
+
+# Async and networking
+asyncio>=3.4.3
+aiofiles>=23.2.1
+
+# Data handling
+pydantic>=2.5.0
+PyYAML>=6.0.1
+
+# Logging and monitoring
+loguru>=0.7.2
+
+# Utilities
+click>=8.1.7
+python-dotenv>=1.0.0
