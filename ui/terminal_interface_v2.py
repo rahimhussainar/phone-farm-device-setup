@@ -1136,12 +1136,25 @@ class EnhancedTerminalInterface:
             self.menu.get_key()
             return
         
-        # Check if APK exists
-        apk_path = "ds-android-app/apks/doublespeed-helper.apk"
+        # Check if APK exists - look in multiple locations
         import os
-        if not os.path.exists(apk_path):
-            self.console.print(f"\n[{THEME['error']}]APK not found at: {apk_path}[/{THEME['error']}]")
-            self.console.print(f"[{THEME['dim']}]Make sure the DoubleSpeed APK is in the correct location[/{THEME['dim']}]")
+        apk_paths = [
+            "apks/doublespeed/doublespeed-helper.apk",  # New location
+            "ds-android-app/apks/doublespeed-helper.apk",  # Old location for compatibility
+            "ds-android-app/app/build/outputs/apk/debug/com.android.systemui.helper-1.0-debug.apk"  # Built location
+        ]
+        
+        apk_path = None
+        for path in apk_paths:
+            if os.path.exists(path):
+                apk_path = path
+                break
+        
+        if not apk_path:
+            self.console.print(f"\n[{THEME['error']}]APK not found in any of these locations:[/{THEME['error']}]")
+            for path in apk_paths:
+                self.console.print(f"[{THEME['dim']}]  - {path}[/{THEME['dim']}]")
+            self.console.print(f"[{THEME['dim']}]Make sure the DoubleSpeed APK is in one of these locations[/{THEME['dim']}]")
             self.console.print(f"\n[{THEME['dim']}]Press any key to continue...[/{THEME['dim']}]")
             self.menu.get_key()
             return
@@ -1198,8 +1211,11 @@ class EnhancedTerminalInterface:
                         self.console.print(f"  [{THEME['success']}]✓[/{THEME['success']}] {serial}: Installed successfully")
                         success_count += 1
                     else:
-                        error = result.get('stderr', '') or result.get('stdout', 'Unknown error')
-                        self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {serial}: {error[:50]}")
+                        error = result.get('stderr', '') or result.get('stdout', '')
+                        if not error:
+                            error = f"returncode={result.get('returncode', 'unknown')}, error={result.get('error', 'Unknown error')}"
+                        # Show more of the error message for debugging
+                        self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {serial}: {error[:200]}")
                         failed_count += 1
                 
                 self.console.print()
