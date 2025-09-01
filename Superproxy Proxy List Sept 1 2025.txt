@@ -1,0 +1,2 @@
+# superproxy:proxylist:v1
+socks5://7ApwLA1546415298A32657:4UJfYlQZtyEx@154.64.152.98:32657 "Default Profile" *

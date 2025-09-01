@@ -38,7 +38,7 @@ public class Preferences
 	}
 
 	public String getSocksAddress() {
-		return prefs.getString(SOCKS_ADDR, "192.53.65.133");
+		return prefs.getString(SOCKS_ADDR, "");
 	}
 
 	public void setSocksAddress(String addr) {
@@ -48,7 +48,7 @@ public class Preferences
 	}
 
 	public int getSocksPort() {
-		return prefs.getInt(SOCKS_PORT, 5134);
+		return prefs.getInt(SOCKS_PORT, 0);
 	}
 
 	public void setSocksPort(int port) {
@@ -58,7 +58,7 @@ public class Preferences
 	}
 
 	public String getSocksUsername() {
-		return prefs.getString(SOCKS_USER, "ihiupcnd");
+		return prefs.getString(SOCKS_USER, "");
 	}
 
 	public void setSocksUsername(String user) {
@@ -68,7 +68,7 @@ public class Preferences
 	}
 
 	public String getSocksPassword() {
-		return prefs.getString(SOCKS_PASS, "k9kfjqyq2bzw");
+		return prefs.getString(SOCKS_PASS, "");
 	}
 
 	public void setSocksPassword(String pass) {

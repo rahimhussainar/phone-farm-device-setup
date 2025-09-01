@@ -2,11 +2,13 @@
 
 import asyncio
 import sys
+import subprocess
 from typing import List, Dict, Optional
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskID
+import time
 from rich.live import Live
 from rich.prompt import Prompt, Confirm
 from rich.text import Text
@@ -18,7 +20,15 @@ from core.device_configurator import DeviceConfigurator
 from core.app_manager import AppManager
 from core.local_apk_installer import LocalAPKInstaller
 from core.bloatware_remover import BloatwareRemover
+from core.fast_startup import FastStartup
+from core.batch_adb import BatchADB
 from ui.interactive_menu import InteractiveMenu, create_menu_items, THEME
+
+try:
+    from config.farm_settings import PERFORMANCE, DISPLAY
+except ImportError:
+    PERFORMANCE = {'fast_mode_threshold': 20, 'auto_continue_threshold': 20}
+    DISPLAY = {'show_metrics': True}
 
 
 class EnhancedTerminalInterface:
@@ -30,6 +40,7 @@ class EnhancedTerminalInterface:
         self.app_manager = AppManager()
         self.local_apk_installer = LocalAPKInstaller()
         self.bloatware_remover = BloatwareRemover()
+        self.batch_adb = BatchADB()
         self.selected_devices: List[Device] = []
     
     async def select_devices_interactive(self, devices: List[Device]) -> List[Device]:
@@ -934,6 +945,8 @@ class EnhancedTerminalInterface:
             for device in devices:
                 if device.status == "connected":
                     await self.device_manager.get_device_network_info(device)
+                    # Check proxy status
+                    device.proxy_status = await self.device_manager.check_proxy_status(device)
             
             # Detailed device table
             self.menu.display_device_table(devices)
@@ -1114,6 +1127,586 @@ class EnhancedTerminalInterface:
         self.console.print(f"\n[{THEME['dim']}]Press any key to continue...[/{THEME['dim']}]")
         self.menu.get_key()
     
+    async def install_doublespeed_app(self):
+        """Install DoubleSpeed Helper app on all connected devices"""
+        devices = self.device_manager.get_connected_devices()
+        if not devices:
+            self.console.print(f"\n[{THEME['error']}]No connected devices. Please connect devices first.[/{THEME['error']}]")
+            self.console.print(f"\n[{THEME['dim']}]Press any key to continue...[/{THEME['dim']}]")
+            self.menu.get_key()
+            return
+        
+        # Check if APK exists
+        apk_path = "ds-android-app/apks/doublespeed-helper.apk"
+        import os
+        if not os.path.exists(apk_path):
+            self.console.print(f"\n[{THEME['error']}]APK not found at: {apk_path}[/{THEME['error']}]")
+            self.console.print(f"[{THEME['dim']}]Make sure the DoubleSpeed APK is in the correct location[/{THEME['dim']}]")
+            self.console.print(f"\n[{THEME['dim']}]Press any key to continue...[/{THEME['dim']}]")
+            self.menu.get_key()
+            return
+        
+        self.menu.clear_screen()
+        self.menu.display_header()
+        self.console.print()
+        
+        self.console.print(f"[{THEME['primary']}]Installing DoubleSpeed Helper App[/{THEME['primary']}]")
+        self.console.print(f"[{THEME['dim']}]APK: {apk_path}[/{THEME['dim']}]")
+        self.console.print(f"[{THEME['dim']}]Devices: {len(devices)}[/{THEME['dim']}]")
+        self.console.print()
+        
+        # Use batch installer if available
+        if hasattr(self, 'batch_adb'):
+            device_serials = [d.serial for d in devices]
+            
+            # First check which devices already have the app
+            self.console.print(f"[{THEME['dim']}]Checking existing installations...[/{THEME['dim']}]")
+            check_results = await self.batch_adb.run_command_batch(
+                device_serials,
+                ["shell", "pm", "list", "packages"],
+                timeout=5.0
+            )
+            
+            already_installed = []
+            to_install = []
+            
+            for serial, result in check_results.items():
+                stdout = result.get('stdout', '')
+                if result.get('success') and "package:com.android.systemui.helper" in stdout:
+                    already_installed.append(serial)
+                    self.console.print(f"  [{THEME['dim']}]○[/{THEME['dim']}] {serial}: Already installed")
+                else:
+                    to_install.append(serial)
+            
+            if not to_install:
+                self.console.print(f"\n[{THEME['success']}]DoubleSpeed app is already installed on all devices[/{THEME['success']}]")
+            else:
+                # Install on devices that need it
+                self.console.print(f"\n[{THEME['dim']}]Installing on {len(to_install)} device(s)...[/{THEME['dim']}]")
+                
+                install_results = await self.batch_adb.install_apk_batch(
+                    to_install,
+                    apk_path,
+                    grant_permissions=True
+                )
+                
+                success_count = 0
+                failed_count = 0
+                
+                for serial, result in install_results.items():
+                    if result['success']:
+                        self.console.print(f"  [{THEME['success']}]✓[/{THEME['success']}] {serial}: Installed successfully")
+                        success_count += 1
+                    else:
+                        error = result.get('stderr', '') or result.get('stdout', 'Unknown error')
+                        self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {serial}: {error[:50]}")
+                        failed_count += 1
+                
+                self.console.print()
+                self.console.print(f"[{THEME['secondary']}]Installation Complete[/{THEME['secondary']}]")
+                self.console.print(f"[{THEME['success']}]Success: {success_count}[/{THEME['success']}] | [{THEME['error']}]Failed: {failed_count}[/{THEME['error']}] | [{THEME['dim']}]Already installed: {len(already_installed)}[/{THEME['dim']}]")
+                
+                # Launch the app on newly installed devices to grant initial permissions
+                if success_count > 0:
+                    self.console.print(f"\n[{THEME['dim']}]Launching app to grant permissions...[/{THEME['dim']}]")
+                    
+                    launch_results = await self.batch_adb.launch_app_batch(
+                        [s for s in to_install if install_results[s]['success']],
+                        "com.android.systemui.helper",
+                        ".MainActivity"
+                    )
+                    
+                    for serial, result in launch_results.items():
+                        if result['success']:
+                            self.console.print(f"  [{THEME['success']}]✓[/{THEME['success']}] {serial}: App launched")
+        else:
+            # Fallback to sequential installation
+            success_count = 0
+            failed_count = 0
+            already_installed = 0
+            
+            for device in devices:
+                # Check if already installed
+                cmd = ["adb", "-s", device.serial, "shell", "pm", "list", "packages", "com.android.systemui.helper"]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+                
+                if "com.android.systemui.helper" in result.stdout:
+                    self.console.print(f"  [{THEME['dim']}]○[/{THEME['dim']}] {device.serial}: Already installed")
+                    already_installed += 1
+                    continue
+                
+                # Install the APK
+                cmd = ["adb", "-s", device.serial, "install", "-g", apk_path]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                
+                if result.returncode == 0 and "Success" in result.stdout:
+                    self.console.print(f"  [{THEME['success']}]✓[/{THEME['success']}] {device.serial}: Installed successfully")
+                    success_count += 1
+                    
+                    # Launch the app
+                    cmd = ["adb", "-s", device.serial, "shell", "am", "start", "-n", "com.android.systemui.helper/.MainActivity"]
+                    subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+                else:
+                    error = result.stderr or result.stdout
+                    self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {device.serial}: {error[:50]}")
+                    failed_count += 1
+            
+            self.console.print()
+            self.console.print(f"[{THEME['secondary']}]Installation Complete[/{THEME['secondary']}]")
+            self.console.print(f"[{THEME['success']}]Success: {success_count}[/{THEME['success']}] | [{THEME['error']}]Failed: {failed_count}[/{THEME['error']}] | [{THEME['dim']}]Already installed: {already_installed}[/{THEME['dim']}]")
+        
+        self.console.print()
+        self.console.print(f"[{THEME['dim']}]Press any key to continue...[/{THEME['dim']}]")
+        self.menu.get_key()
+    
+    async def start_proxy_all_devices(self):
+        """Start proxy on all connected devices"""
+        devices = self.device_manager.get_connected_devices()
+        if not devices:
+            self.console.print(f"\n[{THEME['error']}]No connected devices. Please connect devices first.[/{THEME['error']}]")
+            self.console.print(f"\n[{THEME['dim']}]Press any key to continue...[/{THEME['dim']}]")
+            self.menu.get_key()
+            return
+        
+        self.menu.clear_screen()
+        self.menu.display_header()
+        self.console.print()
+        
+        self.console.print(f"[{THEME['primary']}]Starting Proxy on All Devices[/{THEME['primary']}]")
+        self.console.print(f"[{THEME['dim']}]Devices: {len(devices)}[/{THEME['dim']}]")
+        self.console.print()
+        
+        # Use batch ADB for parallel execution
+        if hasattr(self, 'batch_adb'):
+            device_serials = [d.serial for d in devices]
+            
+            # Send START broadcast to all devices
+            self.console.print(f"[{THEME['dim']}]Sending START broadcast to {len(devices)} device(s)...[/{THEME['dim']}]")
+            results = await self.batch_adb.run_command_batch(
+                device_serials,
+                ["shell", "am", "broadcast", 
+                 "-n", "com.android.systemui.helper/.ProxyControlReceiver",
+                 "-a", "com.android.systemui.helper.START"],
+                timeout=5.0
+            )
+            
+            success_count = 0
+            failed_count = 0
+            
+            for serial, result in results.items():
+                # Check for success - broadcast commands return "Broadcast completed: result=..."
+                stdout = result.get('stdout', '')
+                stderr = result.get('stderr', '')
+                
+                # Debug: show what we actually got
+                logger.debug(f"START broadcast result for {serial}: success={result['success']}, stdout={stdout}, stderr={stderr}")
+                
+                # Success if command executed and broadcast completed
+                if result['success'] and "Broadcast completed" in stdout:
+                    self.console.print(f"  [{THEME['success']}]✓[/{THEME['success']}] {serial}: Proxy started")
+                    success_count += 1
+                else:
+                    error_msg = stderr or stdout or 'Unknown error'
+                    if "Permission Denial" in error_msg:
+                        self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {serial}: Permission denied - app needs to be opened once")
+                    elif "not found" in error_msg.lower() or "Unknown package" in error_msg:
+                        self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {serial}: App not installed - install DoubleSpeed app first")
+                    else:
+                        # Show what we got for debugging
+                        self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {serial}: Failed - check if app is installed")
+                        logger.debug(f"Output: {stdout[:200]}, Error: {stderr[:200]}")
+                    failed_count += 1
+        else:
+            # Fallback to sequential execution
+            success_count = 0
+            failed_count = 0
+            
+            for device in devices:
+                try:
+                    cmd = ["adb", "-s", device.serial, "shell", "am", "broadcast", 
+                           "-n", "com.android.systemui.helper/.ProxyControlReceiver", 
+                           "-a", "com.android.systemui.helper.START"]
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                    
+                    if result.returncode == 0 and "Broadcast completed" in result.stdout:
+                        self.console.print(f"  [{THEME['success']}]✓[/{THEME['success']}] {device.serial}: Proxy started")
+                        success_count += 1
+                    else:
+                        self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {device.serial}: Failed to start")
+                        failed_count += 1
+                        
+                except Exception as e:
+                    self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {device.serial}: {str(e)[:50]}")
+                    failed_count += 1
+        
+        self.console.print()
+        self.console.print(f"[{THEME['secondary']}]Complete[/{THEME['secondary']}]")
+        self.console.print(f"[{THEME['success']}]Success: {success_count}[/{THEME['success']}] | [{THEME['error']}]Failed: {failed_count}[/{THEME['error']}]")
+        self.console.print()
+        self.console.print(f"[{THEME['dim']}]Press any key to continue...[/{THEME['dim']}]")
+        self.menu.get_key()
+    
+    async def stop_proxy_all_devices(self):
+        """Stop proxy on all connected devices"""
+        devices = self.device_manager.get_connected_devices()
+        if not devices:
+            self.console.print(f"\n[{THEME['error']}]No connected devices. Please connect devices first.[/{THEME['error']}]")
+            self.console.print(f"\n[{THEME['dim']}]Press any key to continue...[/{THEME['dim']}]")
+            self.menu.get_key()
+            return
+        
+        self.menu.clear_screen()
+        self.menu.display_header()
+        self.console.print()
+        
+        self.console.print(f"[{THEME['primary']}]Stopping Proxy on All Devices[/{THEME['primary']}]")
+        self.console.print(f"[{THEME['dim']}]Devices: {len(devices)}[/{THEME['dim']}]")
+        self.console.print()
+        
+        success_count = 0
+        failed_count = 0
+        
+        for device in devices:
+            try:
+                # Stop proxy using broadcast command
+                cmd = ["adb", "-s", device.serial, "shell", "am", "broadcast", 
+                       "-n", "com.android.systemui.helper/.ProxyControlReceiver", 
+                       "-a", "com.android.systemui.helper.STOP"]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                
+                if result.returncode == 0 and "Broadcast completed" in result.stdout:
+                    self.console.print(f"  [{THEME['success']}]✓[/{THEME['success']}] {device.serial}: Proxy stopped")
+                    success_count += 1
+                else:
+                    self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {device.serial}: Failed to stop")
+                    failed_count += 1
+                    
+            except Exception as e:
+                self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {device.serial}: {str(e)[:50]}")
+                failed_count += 1
+        
+        self.console.print()
+        self.console.print(f"[{THEME['secondary']}]Complete[/{THEME['secondary']}]")
+        self.console.print(f"[{THEME['success']}]Success: {success_count}[/{THEME['success']}] | [{THEME['error']}]Failed: {failed_count}[/{THEME['error']}]")
+        self.console.print()
+        self.console.print(f"[{THEME['dim']}]Press any key to continue...[/{THEME['dim']}]")
+        self.menu.get_key()
+    
+    async def configure_default_proxy(self):
+        """Configure default proxy settings on all devices"""
+        devices = self.device_manager.get_connected_devices()
+        if not devices:
+            self.console.print(f"\n[{THEME['error']}]No connected devices. Please connect devices first.[/{THEME['error']}]")
+            self.console.print(f"\n[{THEME['dim']}]Press any key to continue...[/{THEME['dim']}]")
+            self.menu.get_key()
+            return
+        
+        # Default proxy configuration
+        proxy_address = "192.53.65.133"
+        proxy_port = 5134
+        proxy_username = "ihiupcnd"
+        proxy_password = "k9kfjqyq2bzw"
+        
+        self.menu.clear_screen()
+        self.menu.display_header()
+        self.console.print()
+        
+        self.console.print(f"[{THEME['primary']}]Configuring Default Proxy[/{THEME['primary']}]")
+        self.console.print(f"[{THEME['dim']}]Address: {proxy_address}:{proxy_port}[/{THEME['dim']}]")
+        self.console.print(f"[{THEME['dim']}]Username: {proxy_username}[/{THEME['dim']}]")
+        self.console.print(f"[{THEME['dim']}]Devices: {len(devices)}[/{THEME['dim']}]")
+        self.console.print()
+        
+        success_count = 0
+        failed_count = 0
+        
+        for device in devices:
+            try:
+                # Configure proxy using broadcast command with all parameters
+                cmd = ["adb", "-s", device.serial, "shell", "am", "broadcast", 
+                       "-n", "com.android.systemui.helper/.ProxyControlReceiver", 
+                       "-a", "com.android.systemui.helper.CONFIG",
+                       "--es", "proxy_address", proxy_address,
+                       "--ei", "proxy_port", str(proxy_port),
+                       "--es", "proxy_username", proxy_username,
+                       "--es", "proxy_password", proxy_password]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                
+                if result.returncode == 0 and "Broadcast completed" in result.stdout:
+                    self.console.print(f"  [{THEME['success']}]✓[/{THEME['success']}] {device.serial}: Configured")
+                    success_count += 1
+                else:
+                    self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {device.serial}: Failed to configure")
+                    failed_count += 1
+                    
+            except Exception as e:
+                self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {device.serial}: {str(e)[:50]}")
+                failed_count += 1
+        
+        self.console.print()
+        self.console.print(f"[{THEME['secondary']}]Configuration Complete[/{THEME['secondary']}]")
+        self.console.print(f"[{THEME['success']}]Success: {success_count}[/{THEME['success']}] | [{THEME['error']}]Failed: {failed_count}[/{THEME['error']}]")
+        self.console.print()
+        self.console.print(f"[{THEME['dim']}]Note: You may need to start the proxy after configuration[/{THEME['dim']}]")
+        self.console.print(f"[{THEME['dim']}]Press any key to continue...[/{THEME['dim']}]")
+        self.menu.get_key()
+    
+    async def test_functions(self):
+        """Test functions menu"""
+        while True:
+            self.menu.clear_screen()
+            self.menu.display_header()
+            self.console.print()
+            
+            self.console.print(f"[{THEME['secondary']}]Test Functions[/{THEME['secondary']}]")
+            self.console.print()
+            
+            test_menu_items = [
+                {
+                    'icon': '[1]',
+                    'label': 'Install DoubleSpeed App',
+                    'action': 'install_doublespeed'
+                },
+                {
+                    'icon': '[2]',
+                    'label': 'Start Proxy (All Devices)',
+                    'action': 'start_proxy'
+                },
+                {
+                    'icon': '[3]',
+                    'label': 'Stop Proxy (All Devices)',
+                    'action': 'stop_proxy'
+                },
+                {
+                    'icon': '[4]',
+                    'label': 'Configure Default Proxy',
+                    'action': 'config_proxy'
+                },
+                {
+                    'icon': '[5]',
+                    'label': 'Export Super Proxy Config',
+                    'action': 'super_proxy_export'
+                },
+                {
+                    'icon': '[B]',
+                    'label': 'Back',
+                    'action': 'back'
+                }
+            ]
+            
+            devices = list(self.device_manager.devices.values())
+            connected = len([d for d in devices if d.status == "connected"])
+            
+            selection = self.menu.navigate_menu(test_menu_items, len(devices), connected, show_separators=False)
+            
+            if not selection or selection['action'] == 'back':
+                break
+            elif selection['action'] == 'install_doublespeed':
+                await self.install_doublespeed_app()
+            elif selection['action'] == 'start_proxy':
+                await self.start_proxy_all_devices()
+            elif selection['action'] == 'stop_proxy':
+                await self.stop_proxy_all_devices()
+            elif selection['action'] == 'config_proxy':
+                await self.configure_default_proxy()
+            elif selection['action'] == 'super_proxy_export':
+                await self.export_super_proxy_config()
+    
+    async def export_super_proxy_config(self):
+        """Export Super Proxy config to DoubleSpeed app"""
+        devices = self.device_manager.get_connected_devices()
+        if not devices:
+            self.console.print(f"\n[{THEME['error']}]No connected devices. Please connect devices first.[/{THEME['error']}]")
+            self.console.print(f"\n[{THEME['dim']}]Press any key to continue...[/{THEME['dim']}]")
+            self.menu.get_key()
+            return
+        
+        # Select devices
+        selected_devices = await self.select_devices_for_install(devices, action="export Super Proxy config")
+        
+        if not selected_devices:
+            self.console.print(f"\n[{THEME['warning']}]No devices selected[/{THEME['warning']}]")
+            self.console.print(f"\n[{THEME['dim']}]Press any key to continue...[/{THEME['dim']}]")
+            self.menu.get_key()
+            return
+        
+        self.menu.clear_screen()
+        self.menu.display_header()
+        self.console.print()
+        
+        self.console.print(f"[{THEME['primary']}]Exporting Super Proxy Config to DoubleSpeed[/{THEME['primary']}]")
+        self.console.print(f"[{THEME['dim']}]Devices: {len(selected_devices)}[/{THEME['dim']}]")
+        self.console.print()
+        
+        success_count = 0
+        failed_count = 0
+        
+        for device in selected_devices:
+            try:
+                self.console.print(f"[{THEME['text']}]Processing {device.serial}...[/{THEME['text']}]")
+                
+                # First, close any existing Super Proxy instance
+                self.console.print(f"  [{THEME['dim']}]Closing any existing Super Proxy...[/{THEME['dim']}]")
+                cmd = ["adb", "-s", device.serial, "shell", "am", "force-stop", "com.superproxy"]
+                subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+                
+                await asyncio.sleep(1)
+                
+                # Launch Super Proxy app fresh
+                self.console.print(f"  [{THEME['dim']}]Opening Super Proxy app...[/{THEME['dim']}]")
+                # Try multiple launch methods
+                cmd = ["adb", "-s", device.serial, "shell", "monkey", "-p", "com.superproxy", "-c", "android.intent.category.LAUNCHER", "1"]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                
+                if "No activities found" in result.stdout or result.returncode != 0:
+                    # Try alternative launch
+                    cmd = ["adb", "-s", device.serial, "shell", "am", "start", "-n", "com.superproxy/com.superproxy.MainActivity"]
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                    
+                    if result.returncode != 0:
+                        # Try with different activity name
+                        cmd = ["adb", "-s", device.serial, "shell", "am", "start", "-n", "com.superproxy/.ui.MainActivity"]
+                        result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                
+                # Wait for app to fully load
+                await asyncio.sleep(3)
+                
+                # Check if we're on the proxy config screen (might see "Stop" button)
+                self.console.print(f"  [{THEME['dim']}]Checking current screen state...[/{THEME['dim']}]")
+                
+                # Dump UI to check current state
+                cmd = ["adb", "-s", device.serial, "shell", "uiautomator", "dump", "/sdcard/window_dump.xml"]
+                subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+                
+                # Read the dump to check for Stop button
+                cmd = ["adb", "-s", device.serial, "shell", "cat", "/sdcard/window_dump.xml"]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+                ui_content = result.stdout.lower() if result.returncode == 0 else ""
+                
+                # If we see "stop" or proxy is running, we need to stop it first
+                if "stop" in ui_content and "proxy" in ui_content:
+                    self.console.print(f"  [{THEME['dim']}]Proxy is running, stopping it first...[/{THEME['dim']}]")
+                    # Click Stop button (usually in center of screen)
+                    cmd = ["adb", "-s", device.serial, "shell", "input", "tap", "540", "960"]
+                    subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+                    await asyncio.sleep(2)
+                    
+                    # Click back arrow to return to main screen
+                    self.console.print(f"  [{THEME['dim']}]Going back to main screen...[/{THEME['dim']}]")
+                    cmd = ["adb", "-s", device.serial, "shell", "input", "keyevent", "KEYCODE_BACK"]
+                    subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+                    await asyncio.sleep(1)
+                
+                # Now we should be on the main screen - click the 3 dots menu
+                self.console.print(f"  [{THEME['dim']}]Opening menu (3 dots in top right)...[/{THEME['dim']}]")
+                # Try different positions for different screen sizes
+                positions = [
+                    (1000, 100),  # Top right for 1080p
+                    (950, 100),   # Slightly left
+                    (980, 150),   # Slightly lower
+                ]
+                
+                for x, y in positions:
+                    cmd = ["adb", "-s", device.serial, "shell", "input", "tap", str(x), str(y)]
+                    subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+                    await asyncio.sleep(0.5)
+                    
+                    # Check if menu opened by dumping UI again
+                    cmd = ["adb", "-s", device.serial, "shell", "uiautomator", "dump", "/sdcard/window_dump.xml"]
+                    subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+                    cmd = ["adb", "-s", device.serial, "shell", "cat", "/sdcard/window_dump.xml"]
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+                    
+                    if "export" in result.stdout.lower():
+                        break
+                
+                await asyncio.sleep(1)
+                
+                # Click on "Export Config" option
+                self.console.print(f"  [{THEME['dim']}]Selecting 'Export Config'...[/{THEME['dim']}]")
+                # Try to click on text "Export Config" using different Y positions
+                export_positions = [
+                    (850, 300),   # First menu item position
+                    (850, 400),   # Second position
+                    (850, 500),   # Third position
+                ]
+                
+                for x, y in export_positions:
+                    cmd = ["adb", "-s", device.serial, "shell", "input", "tap", str(x), str(y)]
+                    subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+                    await asyncio.sleep(0.5)
+                    
+                    # Check if share dialog opened
+                    cmd = ["adb", "-s", device.serial, "shell", "dumpsys", "window", "windows"]
+                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+                    
+                    if "android.intent.action.SEND" in result.stdout or "ResolverActivity" in result.stdout:
+                        break
+                
+                await asyncio.sleep(1)
+                
+                # Now we should see the share sheet - need to find DoubleSpeed
+                self.console.print(f"  [{THEME['dim']}]Looking for DoubleSpeed app in share sheet...[/{THEME['dim']}]")
+                
+                # First swipe up to see more apps if needed
+                cmd = ["adb", "-s", device.serial, "shell", "input", "swipe", "540", "1500", "540", "500", "300"]
+                subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+                
+                await asyncio.sleep(1)
+                
+                # Try to click on DoubleSpeed/SystemUI Helper by text
+                # Use uiautomator to click by text if possible
+                self.console.print(f"  [{THEME['dim']}]Selecting DoubleSpeed app...[/{THEME['dim']}]")
+                
+                # Try clicking by text
+                cmd = ["adb", "-s", device.serial, "shell", 
+                       "input", "tap", "270", "1200"]  # Left side, middle of share sheet
+                subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+                
+                # Alternative: try to launch directly
+                cmd = ["adb", "-s", device.serial, "shell", 
+                       "am", "start", "-a", "android.intent.action.SEND",
+                       "-t", "text/plain",
+                       "--es", "android.intent.extra.TEXT", "proxy_config",
+                       "-n", "com.android.systemui.helper/.ShareReceiverActivity"]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                
+                await asyncio.sleep(2)
+                
+                # Check if permission dialog appeared and accept it
+                self.console.print(f"  [{THEME['dim']}]Checking for permission dialog...[/{THEME['dim']}]")
+                
+                # Click Accept/Allow/OK button (usually at bottom right)
+                accept_positions = [
+                    (900, 1400),   # Bottom right for "Accept"
+                    (650, 1400),   # Center bottom for "OK"
+                    (900, 1350),   # Slightly higher
+                ]
+                
+                for x, y in accept_positions:
+                    cmd = ["adb", "-s", device.serial, "shell", "input", "tap", str(x), str(y)]
+                    subprocess.run(cmd, capture_output=True, text=True, timeout=3)
+                    await asyncio.sleep(0.5)
+                
+                self.console.print(f"  [{THEME['success']}]✓[/{THEME['success']}] Completed for {device.serial}")
+                success_count += 1
+                
+            except Exception as e:
+                logger.error(f"Failed to export config for {device.serial}: {e}")
+                self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] Failed for {device.serial}: {str(e)[:50]}")
+                failed_count += 1
+            
+            # Small delay between devices
+            if device != selected_devices[-1]:
+                await asyncio.sleep(1)
+        
+        self.console.print()
+        self.console.print(f"[{THEME['secondary']}]Export Complete[/{THEME['secondary']}]")
+        self.console.print(f"[{THEME['success']}]Success: {success_count}[/{THEME['success']}] | [{THEME['error']}]Failed: {failed_count}[/{THEME['error']}]")
+        self.console.print()
+        self.console.print(f"[{THEME['dim']}]Press any key to continue...[/{THEME['dim']}]")
+        self.menu.get_key()
+    
     async def run(self):
         """Main UI loop"""
         # Clear screen first
@@ -1125,9 +1718,21 @@ class EnhancedTerminalInterface:
         # Simple, clean startup
         self.console.print()
         
+        start_time = time.time()
+        
+        # Pre-warm ADB for faster startup
+        await FastStartup.prewarm_adb_server()
+        
         # Single status line that updates
         with self.console.status("[green]Initializing...[/green]", spinner="dots") as status:
-            # Scan for devices
+            # Fast parallel device scan
+            device_serials = await FastStartup.parallel_device_scan()
+            
+            # Update status
+            if len(device_serials) > 30:
+                status.update(f"[green]Found {len(device_serials)} devices, optimizing connection...[/green]")
+            
+            # Regular scan to get full device info
             devices = await self.device_manager.scan_devices()
             
             # Auto-connect if devices found
@@ -1135,14 +1740,28 @@ class EnhancedTerminalInterface:
                 # Count authorized devices
                 authorized_count = len([d for d in devices if d.status == "device"])
                 if authorized_count > 0:
-                    if authorized_count == 1:
-                        status.update(f"[green]Connecting to 1 device...[/green]")
-                    else:
-                        status.update(f"[green]Connecting to {authorized_count} devices in parallel...[/green]")
+                    # Always use fast mode for better performance
+                    fast_mode = True
                     
-                    # Connect all devices in parallel
-                    connected_count = await self.device_manager.connect_all_devices()
-                    await asyncio.sleep(0.3)  # Brief pause for connection to settle
+                    if authorized_count == 1:
+                        status.update(f"[green]Fast connecting to 1 device...[/green]")
+                    else:
+                        status.update(f"[green]Fast connecting to {authorized_count} devices...[/green]")
+                    
+                    # Show estimated time for large farms
+                    if authorized_count > 30 and DISPLAY.get('show_metrics', True):
+                        estimated = FastStartup.estimate_connection_time(authorized_count, fast_mode)
+                        status.update(f"[green]Connecting {authorized_count} devices (est. {estimated:.0f}s)...[/green]")
+                    
+                    # Connect all devices with fast mode always enabled
+                    connected_count = await self.device_manager.connect_all_devices(
+                        fast_mode=True,
+                        batch_size=None  # Let it auto-determine batch size
+                    )
+                    
+                    # Minimal pause
+                    if authorized_count <= 10:
+                        await asyncio.sleep(0.1)
         
         # Show final status (single line)
         devices = [d for d in self.device_manager.devices.values() if d.status == "connected"]
@@ -1151,12 +1770,24 @@ class EnhancedTerminalInterface:
                 device = devices[0]
                 self.console.print(f"[{THEME['success']}]✓ {device.serial} connected[/{THEME['success']}]")
             else:
-                self.console.print(f"[{THEME['success']}]✓ {len(devices)} devices connected in parallel[/{THEME['success']}]")
+                # Calculate connection speed for large farms
+                elapsed = time.time() - start_time
+                if len(devices) > 20 and elapsed > 0:
+                    speed = len(devices) / elapsed
+                    self.console.print(f"[{THEME['success']}]✓ {len(devices)} devices connected ({speed:.1f} devices/sec)[/{THEME['success']}]")
+                else:
+                    self.console.print(f"[{THEME['success']}]✓ {len(devices)} devices connected[/{THEME['success']}]")
         else:
             self.console.print(f"[{THEME['warning']}]No devices found - connect via USB[/{THEME['warning']}]")
         
-        self.console.print(f"\n[{THEME['dim']}]Press any key to continue...[/{THEME['dim']}]")
-        self.menu.get_key()
+        # Skip "Press any key" for large farms to save time
+        if len(devices) <= PERFORMANCE.get('auto_continue_threshold', 20):
+            self.console.print(f"\n[{THEME['dim']}]Press any key to continue...[/{THEME['dim']}]")
+            self.menu.get_key()
+        else:
+            # Auto-continue for large farms with very brief pause
+            self.console.print(f"\n[{THEME['dim']}]Auto-continuing...[/{THEME['dim']}]")
+            await asyncio.sleep(0.3)
         
         menu_items = create_menu_items()
         
@@ -1183,3 +1814,5 @@ class EnhancedTerminalInterface:
                 await self.install_apps()
             elif selection['action'] == 'bloatware':
                 await self.remove_bloatware()
+            elif selection['action'] == 'test':
+                await self.test_functions()

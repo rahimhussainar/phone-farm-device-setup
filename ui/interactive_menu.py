@@ -58,92 +58,75 @@ class InteractiveMenu:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
     
     def display_header(self):
-        """Display clean, professional header with chevron logo"""
-        # ASCII chevron logo inspired by the SVG
-        logo_lines = [
-            "    ╱╲    ╱╲    ",
-            "   ╱  ╲  ╱  ╲   ",
-            "  ╱    ╲╱    ╲  ",
-            " ╱            ╲ "
-        ]
+        """Display simple, clean header"""
+        header_text = Text("PHONE FARM MANAGER", style=f"bold {THEME['primary']}")
+        header_text.justify = "center"
         
-        # Create header with logo
-        header_content = Text()
-        for line in logo_lines:
-            header_content.append(line, style=THEME['primary'])
-            header_content.append("\n")
-        
-        header_content.append("\n")
-        header_content.append("PHONE FARM DEVICE MANAGER", style=f"bold {THEME['primary']}")
-        header_content.justify = "center"
-        
-        # Use SQUARE box for sharper corners
         header = Panel(
-            header_content,
+            header_text,
             border_style=THEME['primary'],
-            box=box.SQUARE,  # Sharp corners
-            padding=(0, 2),
-            style="on black"  # Ensure black background
+            box=box.DOUBLE_EDGE,
+            padding=(0, 0),
+            style="on black"
         )
         
         self.console.print(header)
     
-    def display_menu(self, items: List[dict], title: str = "Main Menu"):
-        """Display menu with clean, consistent spacing"""
+    def display_menu(self, items: List[dict], title: str = "Main Menu", show_separators: bool = True):
+        """Display clean, aligned menu"""
         menu_text = Text()
         
         for idx, item in enumerate(items):
-            icon = item.get('icon', '›')  # Changed from dots to chevron
             label = item.get('label', '')
             
+            # Simple selection with arrow
             if idx == self.selected_index:
-                # Highlighted selection with double chevron
-                menu_text.append("  ≫  ", style=THEME['primary'])
-                menu_text.append(f"{icon}  {label}", style=THEME['highlight'])
+                menu_text.append("  ▶  ", style=THEME['primary'])
+                menu_text.append(label, style=f"bold {THEME['highlight']}")
             else:
                 menu_text.append("     ", style="")
-                menu_text.append(f"{icon}  {label}", style=THEME['dim'] if item.get('action') == 'exit' else THEME['text'])
+                if item.get('action') in ['exit', 'back']:
+                    menu_text.append(label, style=THEME['dim'])
+                else:
+                    menu_text.append(label, style=THEME['text'])
             
-            if idx < len(items) - 1:  # Add spacing between items except after last
-                menu_text.append("\n\n")
-            else:
+            # Only add separators for main menu
+            if show_separators and idx in [0, 1, 4]:
+                menu_text.append("\n     ─────────────────────────────", style=THEME['dim'])
+            
+            if idx < len(items) - 1:
                 menu_text.append("\n")
         
-        menu_text.append("\n", style="")
-        menu_text.append("  ↑↓: navigate   enter: select   q: quit", style=THEME['dim'])
+        # Simple controls line
+        menu_text.append("\n\n  ↑↓ Navigate   Enter Select   Q Exit", style=THEME['dim'])
         
+        # Clean panel
         panel = Panel(
             menu_text,
-            border_style=THEME['primary'],  # Green border for connect button
-            box=box.SQUARE,  # Sharp corners
-            width=55,
+            border_style=THEME['primary'],
+            box=box.ROUNDED,
+            width=45,
             padding=(1, 2),
-            style="on black"  # Black background
+            style="on black"
         )
         
         self.console.print(panel)
     
     def display_status(self, devices_count: int = 0, connected_count: int = 0):
-        """Display compact status bar"""
+        """Display simple status line"""
         status_text = Text()
-        
-        # Devices
         status_text.append("Devices: ", style=THEME['dim'])
         status_text.append(f"{devices_count}", style=THEME['secondary'])
-        
         status_text.append("  │  ", style=THEME['dim'])
-        
-        # Connected
         status_text.append("Connected: ", style=THEME['dim'])
         color = THEME['success'] if connected_count > 0 else THEME['dim']
         status_text.append(f"{connected_count}", style=color)
         
         status_text.justify = "center"
-        
         self.console.print(status_text)
         self.console.print()
     
-    def navigate_menu(self, menu_items: List[dict], devices_count: int = 0, connected_count: int = 0) -> Optional[dict]:
+    def navigate_menu(self, menu_items: List[dict], devices_count: int = 0, connected_count: int = 0, show_separators: bool = True) -> Optional[dict]:
         """Navigate menu with arrow keys"""
         while True:
             self.clear_screen()
@@ -151,7 +134,7 @@ class InteractiveMenu:
             self.console.print()  # Space after header
             self.display_status(devices_count, connected_count)
             self.console.print()  # Space before menu
-            self.display_menu(menu_items)
+            self.display_menu(menu_items, show_separators=show_separators)
             
             key = self.get_key()
             
@@ -165,7 +148,7 @@ class InteractiveMenu:
             elif key in ['\x03', 'q', 'Q']:  # Ctrl+C, q (ESC is ignored)
                 return None
             
-            # Number shortcuts (1-9)
+            # Number shortcuts (1-7 for menu items)
             elif key.isdigit():
                 num = int(key) - 1
                 if 0 <= num < len(menu_items):
@@ -281,33 +264,31 @@ def create_menu_items():
     """Create clean menu items"""
     return [
         {
-            'icon': '[1]',
-            'label': 'View Device Status',
+            'label': '[1] View Device Status',
             'action': 'status'
         },
         {
-            'icon': '[2]',
-            'label': 'Run Complete Setup',
+            'label': '[2] Run Complete Setup',
             'action': 'complete'
         },
         {
-            'icon': '[3]',
-            'label': 'Configure Device Settings',
+            'label': '[3] Configure Device Settings',
             'action': 'security'
         },
         {
-            'icon': '[4]',
-            'label': 'Install Applications',
+            'label': '[4] Install Applications',
             'action': 'install'
         },
         {
-            'icon': '[5]',
-            'label': 'Remove Bloatware',
+            'label': '[5] Remove Bloatware',
             'action': 'bloatware'
         },
         {
-            'icon': '[Q]',
-            'label': 'Quit',
+            'label': '[6] Test Functions',
+            'action': 'test'
+        },
+        {
+            'label': '[Q] Exit',
             'action': 'exit'
         }
     ]

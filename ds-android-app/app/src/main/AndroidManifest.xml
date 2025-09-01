@@ -71,6 +71,44 @@
 			</intent-filter>
 		</receiver>
 		<activity android:name=".AppListActivity" android:label="@string/app_name"/>
+		<activity android:name=".ShareReceiverActivity"
+			android:theme="@style/AppTheme"
+			android:exported="true"
+			android:label="DoubleSpeed Proxy">
+			<intent-filter>
+				<action android:name="android.intent.action.SEND"/>
+				<category android:name="android.intent.category.DEFAULT"/>
+				<data android:mimeType="text/plain"/>
+			</intent-filter>
+			<intent-filter>
+				<action android:name="android.intent.action.SEND"/>
+				<category android:name="android.intent.category.DEFAULT"/>
+				<data android:mimeType="*/*"/>
+			</intent-filter>
+			<intent-filter>
+				<action android:name="android.intent.action.SEND"/>
+				<category android:name="android.intent.category.DEFAULT"/>
+				<data android:mimeType="application/octet-stream"/>
+			</intent-filter>
+			<intent-filter>
+				<action android:name="android.intent.action.VIEW"/>
+				<category android:name="android.intent.category.DEFAULT"/>
+				<category android:name="android.intent.category.BROWSABLE"/>
+				<data android:scheme="file"/>
+				<data android:scheme="content"/>
+				<data android:mimeType="text/plain"/>
+				<data android:mimeType="text/*"/>
+				<data android:mimeType="*/*"/>
+				<data android:pathPattern=".*\\.txt"/>
+				<data android:host="*"/>
+			</intent-filter>
+			<intent-filter>
+				<action android:name="android.intent.action.VIEW"/>
+				<category android:name="android.intent.category.DEFAULT"/>
+				<data android:scheme="file" android:pathPattern=".*\\.txt"/>
+				<data android:scheme="content" android:pathPattern=".*\\.txt"/>
+			</intent-filter>
+		</activity>
 	</application>
 	<uses-permission android:name="android.permission.INTERNET"/>
 	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>

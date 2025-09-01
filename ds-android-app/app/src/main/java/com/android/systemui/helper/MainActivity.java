@@ -27,10 +27,14 @@ import android.widget.Toast;
 import android.widget.ImageView;
 import android.net.VpnService;
 import android.util.Log;
+import android.app.AlertDialog;
 import android.net.wifi.WifiManager;
 import android.text.format.Formatter;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import android.view.inputmethod.InputMethodManager;
+import android.content.Context;
+import android.view.MotionEvent;
 import java.util.Collections;
 import java.util.List;
 import android.os.Handler;
@@ -64,6 +68,8 @@ public class MainActivity extends Activity implements View.OnClickListener {
 	private Timer connectionTimer;
 	private long connectionStartTime;
 	private Handler timerHandler = new Handler();
+	private Handler vpnCheckHandler = new Handler();
+	private Runnable vpnCheckRunnable;
 	private Runnable timerRunnable = new Runnable() {
 		@Override
 		public void run() {
@@ -174,27 +180,55 @@ public class MainActivity extends Activity implements View.OnClickListener {
 			registerReceiver(uiUpdateReceiver, filter);
 		}
 
+		/* Setup keyboard dismissal on outside click */
+		setupKeyboardDismissal();
+		
+		/* Setup auto-save on focus change for all EditText fields */
+		setupAutoSave();
+		
 		/* Check if this was launched to auto-connect */
 		boolean autoConnect = getIntent().getBooleanExtra("auto_connect", false);
 		if (autoConnect) {
 			prefs.setEnable(true);
 			savePrefs();
+			// Request VPN permission for auto-connect
+			Intent intent = VpnService.prepare(MainActivity.this);
+			if (intent != null)
+				startActivityForResult(intent, 0);
+			else
+				onActivityResult(0, RESULT_OK, null);
 		}
-
-		/* Request VPN permission */
-		Intent intent = VpnService.prepare(MainActivity.this);
-		if (intent != null)
-		  startActivityForResult(intent, 0);
-		else
-		  onActivityResult(0, RESULT_OK, null);
 	}
 
 	@Override
 	protected void onActivityResult(int request, int result, Intent data) {
-		if ((result == RESULT_OK) && prefs.getEnable()) {
-			Intent intent = new Intent(this, TProxyService.class);
-			startService(intent.setAction(TProxyService.ACTION_CONNECT));
+		if (request == 0) {
+			// Auto-connect request
+			if ((result == RESULT_OK) && prefs.getEnable()) {
+				Intent intent = new Intent(this, TProxyService.class);
+				startService(intent.setAction(TProxyService.ACTION_CONNECT));
+			}
+		} else if (request == 1) {
+			// Button click request
+			if (result == RESULT_OK) {
+				// Permission granted, now enable VPN
+				prefs.setEnable(true);
+				savePrefs();
+				updateUI();
+				Intent intent = new Intent(this, TProxyService.class);
+				startService(intent.setAction(TProxyService.ACTION_CONNECT));
+			} else {
+				// Permission denied
+				Toast.makeText(this, "VPN permission is required to use proxy", Toast.LENGTH_LONG).show();
+			}
 		}
+	}
+	
+	@Override
+	protected void onPause() {
+		super.onPause();
+		// Stop VPN state monitoring when activity is paused
+		stopVpnStateMonitoring();
 	}
 	
 	@Override
@@ -202,6 +236,7 @@ public class MainActivity extends Activity implements View.OnClickListener {
 		super.onDestroy();
 		unregisterReceiver(uiUpdateReceiver);
 		timerHandler.removeCallbacks(timerRunnable);
+		stopVpnStateMonitoring();
 	}
 	
 	@Override
@@ -210,6 +245,9 @@ public class MainActivity extends Activity implements View.OnClickListener {
 		// Refresh UI when activity resumes
 		prefs = new Preferences(this);
 		updateUI();
+		
+		// Start VPN state monitoring
+		startVpnStateMonitoring();
 	}
 
 	@Override
@@ -233,24 +271,48 @@ public class MainActivity extends Activity implements View.OnClickListener {
 		// } else if (view == button_apps) { // Removed apps button
 		//	startActivity(new Intent(this, AppListActivity.class));
 		} else if (view == button_save) {
-			savePrefs();
-			checkProxyConfig();
+			// Reset button - clear all configuration
+			resetConfiguration();
 		} else if (view == button_control) {
 			boolean isEnable = prefs.getEnable();
-			prefs.setEnable(!isEnable);
-			savePrefs();
-			updateUI();
-			Intent intent = new Intent(this, TProxyService.class);
-			if (isEnable)
-			  startService(intent.setAction(TProxyService.ACTION_DISCONNECT));
-			else
-			  startService(intent.setAction(TProxyService.ACTION_CONNECT));
+			
+			if (!isEnable) {
+				// Always revoke and re-request VPN permission to handle conflicts
+				// This ensures we're the active VPN even if other apps have permission
+				try {
+					VpnService.prepare(null); // Revoke any existing VPN permission
+				} catch (Exception e) {
+					// Ignore errors when revoking
+				}
+				
+				// Now request VPN permission
+				Intent vpnIntent = VpnService.prepare(MainActivity.this);
+				if (vpnIntent != null) {
+					// Need to request VPN permission
+					startActivityForResult(vpnIntent, 1); // Use request code 1 for button click
+					return; // Don't proceed until permission is granted
+				}
+				// Permission already granted, proceed to enable
+				prefs.setEnable(true);
+				savePrefs();
+				updateUI();
+				Intent intent = new Intent(this, TProxyService.class);
+				startService(intent.setAction(TProxyService.ACTION_CONNECT));
+			} else {
+				// Disable VPN
+				prefs.setEnable(false);
+				savePrefs();
+				updateUI();
+				Intent intent = new Intent(this, TProxyService.class);
+				startService(intent.setAction(TProxyService.ACTION_DISCONNECT));
+			}
 		}
 	}
 
 	private void updateUI() {
 		edittext_socks_addr.setText(prefs.getSocksAddress());
-		edittext_socks_port.setText(Integer.toString(prefs.getSocksPort()));
+		int port = prefs.getSocksPort();
+		edittext_socks_port.setText(port > 0 ? Integer.toString(port) : "");
 		edittext_socks_user.setText(prefs.getSocksUsername());
 		edittext_socks_pass.setText(prefs.getSocksPassword());
 		edittext_dns_ipv4.setText(prefs.getDnsIpv4());
@@ -274,7 +336,7 @@ public class MainActivity extends Activity implements View.OnClickListener {
 		checkbox_ipv4.setEnabled(editable);
 		checkbox_ipv6.setEnabled(editable);
 		// button_apps.setEnabled(editable && !prefs.getGlobal()); // Removed apps button
-		button_save.setEnabled(editable);
+		button_save.setEnabled(true); // Reset button is always enabled
 
 		if (editable) {
 		  button_control.setText(R.string.control_enable);
@@ -595,7 +657,8 @@ public class MainActivity extends Activity implements View.OnClickListener {
 
 	private void savePrefs() {
 		prefs.setSocksAddress(edittext_socks_addr.getText().toString());
-		prefs.setSocksPort(Integer.parseInt(edittext_socks_port.getText().toString()));
+		String portStr = edittext_socks_port.getText().toString().trim();
+		prefs.setSocksPort(portStr.isEmpty() ? 0 : Integer.parseInt(portStr));
 		prefs.setSocksUsername(edittext_socks_user.getText().toString());
 		prefs.setSocksPassword(edittext_socks_pass.getText().toString());
 		prefs.setDnsIpv4(edittext_dns_ipv4.getText().toString());
@@ -607,6 +670,43 @@ public class MainActivity extends Activity implements View.OnClickListener {
 		prefs.setGlobal(checkbox_global.isChecked());
 		prefs.setUdpInTcp(checkbox_udp_in_tcp.isChecked());
 		prefs.setRemoteDns(checkbox_remote_dns.isChecked());
+	}
+	
+	private void resetConfiguration() {
+		// Show confirmation dialog
+		AlertDialog.Builder builder = new AlertDialog.Builder(this);
+		builder.setTitle("Reset Configuration");
+		builder.setMessage("Are you sure you want to clear all proxy settings?");
+		
+		builder.setPositiveButton("Reset", (dialog, which) -> {
+			// Clear proxy settings but keep recommended defaults
+			prefs.setSocksAddress("");
+			prefs.setSocksPort(0);
+			prefs.setSocksUsername("");
+			prefs.setSocksPassword("");
+			// Set DNS to Google's public DNS servers
+			prefs.setDnsIpv4("8.8.8.8");
+			prefs.setDnsIpv6("2001:4860:4860::8888");
+			// Enable all checkboxes by default for best compatibility
+			prefs.setIpv4(true);
+			prefs.setIpv6(true);
+			prefs.setGlobal(true);
+			prefs.setUdpInTcp(true);
+			prefs.setRemoteDns(true);
+			
+			// Update UI to show cleared values
+			updateUI();
+			
+			// Hide any proxy status indicator
+			if (proxy_status_indicator != null) {
+				proxy_status_indicator.setVisibility(View.GONE);
+			}
+			
+			Toast.makeText(this, "Configuration reset to defaults", Toast.LENGTH_SHORT).show();
+		});
+		
+		builder.setNegativeButton("Cancel", null);
+		builder.show();
 	}
 	
 	private void checkProxyConfig() {
@@ -649,6 +749,110 @@ public class MainActivity extends Activity implements View.OnClickListener {
 					proxy_status_indicator.setVisibility(View.GONE);
 				}
 			}, 5000);
+		}
+	}
+	
+	private void setupKeyboardDismissal() {
+		// Get the root view
+		View rootView = findViewById(android.R.id.content);
+		
+		// Set touch listener on root view to dismiss keyboard
+		rootView.setOnTouchListener(new View.OnTouchListener() {
+			@Override
+			public boolean onTouch(View v, MotionEvent event) {
+				if (event.getAction() == MotionEvent.ACTION_DOWN) {
+					// Hide keyboard
+					View focusedView = getCurrentFocus();
+					if (focusedView != null) {
+						InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+						imm.hideSoftInputFromWindow(focusedView.getWindowToken(), 0);
+						focusedView.clearFocus();
+						// Save when keyboard is dismissed
+						savePrefs();
+					}
+				}
+				return false;
+			}
+		});
+	}
+	
+	private void setupAutoSave() {
+		// Set up focus change listeners for all EditText fields
+		View.OnFocusChangeListener autoSaveListener = new View.OnFocusChangeListener() {
+			@Override
+			public void onFocusChange(View v, boolean hasFocus) {
+				if (!hasFocus) {
+					// Field lost focus, save preferences
+					savePrefs();
+				}
+			}
+		};
+		
+		// Apply listener to all EditText fields
+		edittext_socks_addr.setOnFocusChangeListener(autoSaveListener);
+		edittext_socks_port.setOnFocusChangeListener(autoSaveListener);
+		edittext_socks_user.setOnFocusChangeListener(autoSaveListener);
+		edittext_socks_pass.setOnFocusChangeListener(autoSaveListener);
+		edittext_dns_ipv4.setOnFocusChangeListener(autoSaveListener);
+		edittext_dns_ipv6.setOnFocusChangeListener(autoSaveListener);
+	}
+	
+	private void hideKeyboard() {
+		View view = this.getCurrentFocus();
+		if (view != null) {
+			InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+			imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+			view.clearFocus();
+		}
+	}
+	
+	private void startVpnStateMonitoring() {
+		// Create runnable to check VPN state
+		vpnCheckRunnable = new Runnable() {
+			@Override
+			public void run() {
+				checkVpnState();
+				// Check every 2 seconds
+				vpnCheckHandler.postDelayed(this, 2000);
+			}
+		};
+		// Start checking
+		vpnCheckHandler.postDelayed(vpnCheckRunnable, 2000);
+	}
+	
+	private void stopVpnStateMonitoring() {
+		if (vpnCheckHandler != null && vpnCheckRunnable != null) {
+			vpnCheckHandler.removeCallbacks(vpnCheckRunnable);
+		}
+	}
+	
+	private void checkVpnState() {
+		// Check if our VPN service is still active
+		if (prefs.getEnable()) {
+			// Check if VPN permission is still granted to our app
+			Intent intent = VpnService.prepare(this);
+			if (intent != null) {
+				// VPN permission was revoked (another app took over)
+				Log.d("MainActivity", "VPN taken over by another app, updating state");
+				
+				// Update our state to reflect disconnection
+				prefs.setEnable(false);
+				
+				// Stop the timer
+				connectionStartTime = 0;
+				timerHandler.removeCallbacks(timerRunnable);
+				
+				// Update UI on main thread
+				runOnUiThread(new Runnable() {
+					@Override
+					public void run() {
+						updateUI();
+						Toast.makeText(MainActivity.this, 
+							"VPN disconnected - another app took over", 
+							Toast.LENGTH_SHORT).show();
+					}
+				});
+			}
 		}
 	}
 }

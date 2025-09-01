@@ -13,7 +13,7 @@
 	<string name="ipv6">IPv6</string>
 	<string name="global">Global</string>
 	<string name="apps">Apps</string>
-	<string name="save">Save</string>
+	<string name="save">Reset</string>
 	<string name="control_enable">Enable</string>
 	<string name="control_disable">Disable</string>
 </resources>
