@@ -77,16 +77,19 @@ SAFE_TO_REMOVE = [
     "com.tripledot.woodoku",
     "com.pixel.art.coloring.color.number",
     "com.vitastudio.mahjong",
-    "com.block.juggle",
+    "com.block.juggle",  # Block Blast
     "com.dreamgames.royalkingdom",  # Royal Kingdom
+    "com.bubbleshooter.popbubbles.collectcards",  # Bubble Shooter
+    "com.mobilityware.solitaire",  # Solitaire
     
     # Shopping/Services
     "com.amazon.mShop.android.shopping",
     "com.amazon.kindle",
-    "com.amazon.mp3",
+    "com.amazon.mp3",  # Amazon Music
     "com.ebay.mobile",
     "com.alibaba.aliexpresshd",
     "com.squareup.cash",
+    "com.booking",  # Booking.com
     
     # Job/Finance Apps
     "com.indeed.android.jobsearch",  # Indeed Job Search
