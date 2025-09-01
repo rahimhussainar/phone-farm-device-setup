@@ -1168,8 +1168,8 @@ class EnhancedTerminalInterface:
         self.console.print(f"[{THEME['dim']}]Devices: {len(devices)}[/{THEME['dim']}]")
         self.console.print()
         
-        # Use batch installer if available
-        if hasattr(self, 'batch_adb'):
+        # Use sequential installer for better reliability with APK paths
+        if False and hasattr(self, 'batch_adb'):  # Disabled batch for now
             device_serials = [d.serial for d in devices]
             
             # First check which devices already have the app
