@@ -212,14 +212,17 @@ public class MainActivity extends Activity implements View.OnClickListener {
 			// Button click request
 			if (result == RESULT_OK) {
 				// Permission granted, now enable VPN
+				Log.d("MainActivity", "VPN permission granted, starting service");
 				prefs.setEnable(true);
 				savePrefs();
 				updateUI();
 				Intent intent = new Intent(this, TProxyService.class);
 				startService(intent.setAction(TProxyService.ACTION_CONNECT));
+				Toast.makeText(this, "VPN connected successfully", Toast.LENGTH_SHORT).show();
 			} else {
-				// Permission denied
-				Toast.makeText(this, "VPN permission is required to use proxy", Toast.LENGTH_LONG).show();
+				// Permission denied or cancelled
+				Log.w("MainActivity", "VPN permission denied by user");
+				Toast.makeText(this, "VPN permission is required to use the proxy. Please click 'OK' in the permission dialog.", Toast.LENGTH_LONG).show();
 			}
 		}
 	}
@@ -277,19 +280,16 @@ public class MainActivity extends Activity implements View.OnClickListener {
 			boolean isEnable = prefs.getEnable();
 			
 			if (!isEnable) {
-				// Always revoke and re-request VPN permission to handle conflicts
-				// This ensures we're the active VPN even if other apps have permission
-				try {
-					VpnService.prepare(null); // Revoke any existing VPN permission
-				} catch (Exception e) {
-					// Ignore errors when revoking
-				}
-				
-				// Now request VPN permission
+				// Request VPN permission
 				Intent vpnIntent = VpnService.prepare(MainActivity.this);
 				if (vpnIntent != null) {
 					// Need to request VPN permission
-					startActivityForResult(vpnIntent, 1); // Use request code 1 for button click
+					try {
+						startActivityForResult(vpnIntent, 1); // Use request code 1 for button click
+					} catch (Exception e) {
+						Log.e("MainActivity", "Failed to request VPN permission: " + e.getMessage());
+						Toast.makeText(this, "Failed to request VPN permission. Please try again.", Toast.LENGTH_LONG).show();
+					}
 					return; // Don't proceed until permission is granted
 				}
 				// Permission already granted, proceed to enable
