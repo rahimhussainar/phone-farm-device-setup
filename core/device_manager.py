@@ -8,6 +8,7 @@ from adb_shell.adb_device import AdbDeviceTcp, AdbDeviceUsb
 from adb_shell.auth.sign_pythonrsa import PythonRSASigner
 from adb_shell.auth.keygen import keygen
 import os
+import time
 
 
 @dataclass
@@ -123,11 +124,12 @@ class DeviceManager:
             
             logger.info(f"Connecting to device {device.serial}...")
             
-            # Initialize uiautomator2
-            device.u2_device = u2.connect(device.serial)
+            # Run the blocking u2.connect in a thread pool to avoid blocking the event loop
+            loop = asyncio.get_event_loop()
+            device.u2_device = await loop.run_in_executor(None, u2.connect, device.serial)
             
-            # Test connection
-            info = device.u2_device.info
+            # Test connection - also run in executor to avoid blocking
+            info = await loop.run_in_executor(None, lambda: device.u2_device.info)
             device.android_version = str(info.get('version', 'Unknown'))
             
             # Update device in our dictionary
@@ -142,8 +144,15 @@ class DeviceManager:
             device.status = "error"
             return False
     
-    async def connect_all_devices(self) -> int:
-        """Connect to all detected devices"""
+    async def connect_all_devices(self, progress_callback=None, batch_size=None) -> int:
+        """Connect to all detected devices in parallel with optional progress callback
+        
+        Args:
+            progress_callback: Optional callback for progress updates
+            batch_size: Max number of devices to connect simultaneously (None = all at once)
+        """
+        start_time = time.time()
+        
         # Use existing devices if already scanned, otherwise scan
         if not self.devices:
             devices = await self.scan_devices()
@@ -163,23 +172,72 @@ class DeviceManager:
                 logger.info(f"  Device {device.serial}: status={device.status}")
             return 0
         
-        logger.info(f"Connecting to {len(authorized_devices)} authorized device(s)...")
+        device_count = len(authorized_devices)
+        logger.info(f"Connecting to {device_count} authorized device(s) in parallel...")
         
-        # Connect to devices concurrently
-        tasks = [self.connect_device(device) for device in authorized_devices]
-        try:
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-        except asyncio.CancelledError:
-            # Cancel all tasks if interrupted
-            for task in tasks:
-                if hasattr(task, 'cancel'):
-                    task.cancel()
-            raise
+        # Determine batch size - for large farms, use batches to avoid overwhelming system
+        if batch_size is None:
+            # Auto-determine batch size based on device count
+            if device_count <= 10:
+                batch_size = device_count  # Small number, do all at once
+            elif device_count <= 30:
+                batch_size = 15  # Medium number, do in batches of 15
+            else:
+                batch_size = 20  # Large farm, do in batches of 20
         
-        connected_count = sum(results)
-        logger.info(f"Successfully connected to {connected_count}/{len(authorized_devices)} authorized devices")
+        total_connected = 0
         
-        return connected_count
+        # Process in batches if needed
+        if batch_size >= device_count:
+            # Single batch - connect all at once
+            tasks = [asyncio.create_task(self.connect_device(device)) for device in authorized_devices]
+            
+            try:
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                total_connected = sum(1 for r in results if r is True)
+                
+                if progress_callback:
+                    await progress_callback(total_connected, device_count)
+                    
+            except asyncio.CancelledError:
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                raise
+        else:
+            # Multiple batches for large device farms
+            for batch_start in range(0, device_count, batch_size):
+                batch_end = min(batch_start + batch_size, device_count)
+                batch_devices = authorized_devices[batch_start:batch_end]
+                
+                logger.info(f"Connecting batch {batch_start//batch_size + 1}: devices {batch_start+1}-{batch_end} of {device_count}")
+                
+                tasks = [asyncio.create_task(self.connect_device(device)) for device in batch_devices]
+                
+                try:
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                    batch_connected = sum(1 for r in results if r is True)
+                    total_connected += batch_connected
+                    
+                    if progress_callback:
+                        await progress_callback(total_connected, device_count)
+                        
+                except asyncio.CancelledError:
+                    for task in tasks:
+                        if not task.done():
+                            task.cancel()
+                    raise
+        
+        # Calculate and log connection time
+        elapsed_time = time.time() - start_time
+        logger.info(f"Successfully connected to {total_connected}/{device_count} devices in {elapsed_time:.1f} seconds")
+        
+        if device_count > 10:
+            # Log performance metrics for large farms
+            avg_time_per_device = elapsed_time / device_count if device_count > 0 else 0
+            logger.info(f"Average connection time: {avg_time_per_device:.2f} seconds per device")
+        
+        return total_connected
     
     def get_connected_devices(self) -> List[Device]:
         """Get all connected devices"""

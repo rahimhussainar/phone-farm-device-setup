@@ -141,10 +141,16 @@ class EnhancedTerminalInterface:
         authorized_not_connected = [d for d in devices if d.status == "device"]
         
         if authorized_not_connected:
-            self.console.print(f"[{THEME['dim']}]Connecting to {len(authorized_not_connected)} authorized device(s)...[/{THEME['dim']}]")
+            if len(authorized_not_connected) == 1:
+                self.console.print(f"[{THEME['dim']}]Connecting to 1 authorized device...[/{THEME['dim']}]")
+            else:
+                self.console.print(f"[{THEME['dim']}]Connecting to {len(authorized_not_connected)} authorized devices in parallel...[/{THEME['dim']}]")
             count = await self.device_manager.connect_all_devices()
             if count > 0:
-                self.console.print(f"[{THEME['success']}]✓ Connected to {count} device(s)[/{THEME['success']}]")
+                if count == 1:
+                    self.console.print(f"[{THEME['success']}]✓ Connected to 1 device[/{THEME['success']}]")
+                else:
+                    self.console.print(f"[{THEME['success']}]✓ Connected to {count} devices in parallel[/{THEME['success']}]")
     
     async def select_devices_for_install(self, devices: List[Device], action: str = None) -> List[Device]:
         """Select devices for app installation with spacebar"""
@@ -1126,9 +1132,17 @@ class EnhancedTerminalInterface:
             
             # Auto-connect if devices found
             if devices:
-                status.update(f"[green]Connecting...[/green]")
-                connected_count = await self.device_manager.connect_all_devices()
-                await asyncio.sleep(0.3)  # Brief pause for connection to settle
+                # Count authorized devices
+                authorized_count = len([d for d in devices if d.status == "device"])
+                if authorized_count > 0:
+                    if authorized_count == 1:
+                        status.update(f"[green]Connecting to 1 device...[/green]")
+                    else:
+                        status.update(f"[green]Connecting to {authorized_count} devices in parallel...[/green]")
+                    
+                    # Connect all devices in parallel
+                    connected_count = await self.device_manager.connect_all_devices()
+                    await asyncio.sleep(0.3)  # Brief pause for connection to settle
         
         # Show final status (single line)
         devices = [d for d in self.device_manager.devices.values() if d.status == "connected"]
@@ -1137,7 +1151,7 @@ class EnhancedTerminalInterface:
                 device = devices[0]
                 self.console.print(f"[{THEME['success']}]✓ {device.serial} connected[/{THEME['success']}]")
             else:
-                self.console.print(f"[{THEME['success']}]✓ {len(devices)} devices connected[/{THEME['success']}]")
+                self.console.print(f"[{THEME['success']}]✓ {len(devices)} devices connected in parallel[/{THEME['success']}]")
         else:
             self.console.print(f"[{THEME['warning']}]No devices found - connect via USB[/{THEME['warning']}]")
         
