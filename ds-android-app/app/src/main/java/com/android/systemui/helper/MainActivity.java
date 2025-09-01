@@ -896,14 +896,18 @@ public class MainActivity extends Activity implements View.OnClickListener {
 	private void showVpnConflictDialog() {
 		AlertDialog.Builder builder = new AlertDialog.Builder(this);
 		builder.setTitle("VPN Conflict Detected");
-		builder.setMessage("Another VPN app may be active. To use DoubleSpeed proxy:\n\n" +
+		builder.setMessage("Another VPN app is blocking access. To use DoubleSpeed proxy:\n\n" +
+			"⚠️ IMPORTANT: Check for 'Always-on VPN' settings\n\n" +
 			"1. Go to Settings → Network & Internet → VPN\n" +
-			"2. Disconnect any active VPN\n" +
-			"3. Remove/delete other VPN profiles\n" +
-			"4. Return here and try again\n\n" +
+			"2. Tap the ⚙️ gear icon next to any VPN (like Super Proxy)\n" +
+			"3. DISABLE 'Always-on VPN'\n" +
+			"4. DISABLE 'Block connections without VPN'\n" +
+			"5. Disconnect and remove the VPN profile\n" +
+			"6. Return here and try again\n\n" +
+			"These settings prevent ANY other VPN app from working!\n\n" +
 			"Would you like to open VPN settings now?");
 		
-		builder.setPositiveButton("Open Settings", (dialog, which) -> {
+		builder.setPositiveButton("Open VPN Settings", (dialog, which) -> {
 			// Open VPN settings
 			try {
 				Intent intent = new Intent("android.settings.VPN_SETTINGS");
@@ -926,7 +930,7 @@ public class MainActivity extends Activity implements View.OnClickListener {
 				try {
 					startActivityForResult(vpnIntent, 1);
 				} catch (Exception e) {
-					Toast.makeText(this, "Cannot request VPN permission. Please clear other VPN apps first.", Toast.LENGTH_LONG).show();
+					Toast.makeText(this, "Cannot request VPN permission. Please disable 'Always-on VPN' in other VPN apps first.", Toast.LENGTH_LONG).show();
 				}
 			}
 		});
