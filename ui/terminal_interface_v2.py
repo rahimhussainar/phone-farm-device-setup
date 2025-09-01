@@ -1276,68 +1276,28 @@ class EnhancedTerminalInterface:
         self.console.print(f"[{THEME['dim']}]Devices: {len(devices)}[/{THEME['dim']}]")
         self.console.print()
         
-        # Use batch ADB for parallel execution
-        if hasattr(self, 'batch_adb'):
-            device_serials = [d.serial for d in devices]
-            
-            # Send START broadcast to all devices
-            self.console.print(f"[{THEME['dim']}]Sending START broadcast to {len(devices)} device(s)...[/{THEME['dim']}]")
-            results = await self.batch_adb.run_command_batch(
-                device_serials,
-                ["shell", "am", "broadcast", 
-                 "-n", "com.android.systemui.helper/.ProxyControlReceiver",
-                 "-a", "com.android.systemui.helper.START"],
-                timeout=5.0
-            )
-            
-            success_count = 0
-            failed_count = 0
-            
-            for serial, result in results.items():
-                # Check for success - broadcast commands return "Broadcast completed: result=..."
-                stdout = result.get('stdout', '')
-                stderr = result.get('stderr', '')
+        success_count = 0
+        failed_count = 0
+        
+        # Use the same simple approach as stop proxy - it works!
+        for device in devices:
+            try:
+                # Start proxy using broadcast command
+                cmd = ["adb", "-s", device.serial, "shell", "am", "broadcast", 
+                       "-n", "com.android.systemui.helper/.ProxyControlReceiver", 
+                       "-a", "com.android.systemui.helper.START"]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
                 
-                # Debug: show what we actually got
-                logger.debug(f"START broadcast result for {serial}: success={result['success']}, stdout={stdout}, stderr={stderr}")
-                
-                # Success if command executed and broadcast completed
-                if result['success'] and "Broadcast completed" in stdout:
-                    self.console.print(f"  [{THEME['success']}]✓[/{THEME['success']}] {serial}: Proxy started")
+                if result.returncode == 0 and "Broadcast completed" in result.stdout:
+                    self.console.print(f"  [{THEME['success']}]✓[/{THEME['success']}] {device.serial}: Proxy started")
                     success_count += 1
                 else:
-                    error_msg = stderr or stdout or 'Unknown error'
-                    if "Permission Denial" in error_msg:
-                        self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {serial}: Permission denied - app needs to be opened once")
-                    elif "not found" in error_msg.lower() or "Unknown package" in error_msg:
-                        self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {serial}: App not installed - install DoubleSpeed app first")
-                    else:
-                        # Show what we got for debugging
-                        self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {serial}: Failed - check if app is installed")
-                        logger.debug(f"Output: {stdout[:200]}, Error: {stderr[:200]}")
+                    self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {device.serial}: Failed to start")
                     failed_count += 1
-        else:
-            # Fallback to sequential execution
-            success_count = 0
-            failed_count = 0
-            
-            for device in devices:
-                try:
-                    cmd = ["adb", "-s", device.serial, "shell", "am", "broadcast", 
-                           "-n", "com.android.systemui.helper/.ProxyControlReceiver", 
-                           "-a", "com.android.systemui.helper.START"]
-                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
                     
-                    if result.returncode == 0 and "Broadcast completed" in result.stdout:
-                        self.console.print(f"  [{THEME['success']}]✓[/{THEME['success']}] {device.serial}: Proxy started")
-                        success_count += 1
-                    else:
-                        self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {device.serial}: Failed to start")
-                        failed_count += 1
-                        
-                except Exception as e:
-                    self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {device.serial}: {str(e)[:50]}")
-                    failed_count += 1
+            except Exception as e:
+                self.console.print(f"  [{THEME['error']}]✗[/{THEME['error']}] {device.serial}: {str(e)[:50]}")
+                failed_count += 1
         
         self.console.print()
         self.console.print(f"[{THEME['secondary']}]Complete[/{THEME['secondary']}]")
