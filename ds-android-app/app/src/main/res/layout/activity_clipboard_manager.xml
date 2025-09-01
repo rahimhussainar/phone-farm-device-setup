@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background_primary">
+    
+    <!-- Header with Logo and Back Button -->
+    <LinearLayout
+        android:id="@+id/header_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@color/charcoal_dark"
+        android:elevation="4dp"
+        android:paddingTop="24dp"
+        android:paddingBottom="16dp">
+        
+        <!-- Back Button positioned absolutely -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            
+            <!-- Logo centered -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center">
+                
+                <ImageView
+                    android:layout_width="200dp"
+                    android:layout_height="60dp"
+                    android:src="@drawable/doublespeed_logo"
+                    android:scaleType="fitCenter"/>
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Clipboard Manager"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    android:layout_marginTop="8dp"
+                    android:letterSpacing="0.05"/>
+            </LinearLayout>
+            
+            <!-- Back button overlaid -->
+            <ImageView
+                android:id="@+id/back_button"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_back_arrow"
+                android:tint="@color/off_white"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/back_button_ripple"
+                android:padding="4dp"
+                android:layout_gravity="start|top"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="12dp"/>
+        </FrameLayout>
+    </LinearLayout>
+    
+    <!-- Main Content Container -->
+    <LinearLayout
+        android:id="@+id/main_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@+id/header_container"
+        android:layout_above="@+id/bottom_controls"
+        android:orientation="vertical"
+        android:background="@color/charcoal_dark">
+        
+        <!-- Clipboard History Header -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="20dp">
+            
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="CLIPBOARD HISTORY"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:letterSpacing="0.1"/>
+            
+            <TextView
+                android:id="@+id/item_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0 items"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"/>
+        </LinearLayout>
+        
+        <!-- Clipboard Items List -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/charcoal_dark">
+            
+            <!-- Empty State -->
+            <TextView
+                android:id="@+id/empty_state_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="No clipboard history\nSwipe left to delete items"
+                android:textColor="@color/text_secondary"
+                android:textSize="14sp"
+                android:textAlignment="center"
+                android:visibility="gone"/>
+            
+            <!-- RecyclerView for clipboard items -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/clipboard_recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:paddingLeft="20dp"
+                android:paddingRight="20dp"
+                android:paddingBottom="20dp"
+                android:clipToPadding="false"/>
+        </FrameLayout>
+    </LinearLayout>
+    
+    <!-- Bottom Control Panel -->
+    <LinearLayout
+        android:id="@+id/bottom_controls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:orientation="vertical"
+        android:background="@color/charcoal_dark"
+        android:elevation="8dp">
+        
+        <!-- Android Warning Text -->
+        <TextView
+            android:id="@+id/android_warning"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⚠️ Android 10+ restricts clipboard access to foreground apps"
+            android:textColor="@color/text_secondary"
+            android:textSize="10sp"
+            android:gravity="center"
+            android:padding="8dp"
+            android:visibility="gone"/>
+        
+        <!-- Control Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:padding="16dp">
+            
+            <!-- Send to Server Button -->
+            <LinearLayout
+                android:id="@+id/send_to_server_button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:background="@drawable/edit_text_glass"
+                android:padding="12dp"
+                android:layout_marginEnd="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?android:attr/selectableItemBackground">
+                
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_send"
+                    android:tint="@color/success_green"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginBottom="4dp"/>
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Send to Server"
+                    android:textColor="@color/text_primary"
+                    android:textSize="12sp"
+                    android:layout_gravity="center_horizontal"/>
+                
+                <TextView
+                    android:id="@+id/server_url_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Not configured"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="10sp"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="2dp"/>
+            </LinearLayout>
+            
+            <!-- Capture Clipboard Button -->
+            <LinearLayout
+                android:id="@+id/capture_now_button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:background="@drawable/edit_text_glass"
+                android:padding="12dp"
+                android:layout_marginStart="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?android:attr/selectableItemBackground">
+                
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:src="@drawable/ic_clipboard"
+                    android:tint="@color/success_green"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginBottom="4dp"/>
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Capture Clipboard"
+                    android:textColor="@color/text_primary"
+                    android:textSize="12sp"
+                    android:layout_gravity="center_horizontal"/>
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Tap to capture"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="10sp"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="2dp"/>
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</RelativeLayout>

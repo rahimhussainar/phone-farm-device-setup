@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="16dp"
+    android:height="16dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Clean verified globe icon -->
+    <path
+        android:fillColor="@color/forest_green"
+        android:pathData="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M17.07,9.42L11,15.5L6.93,11.42L8.34,10L11,12.67L15.66,8L17.07,9.42Z"/>
+</vector>

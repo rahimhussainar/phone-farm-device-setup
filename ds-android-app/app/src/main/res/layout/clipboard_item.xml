@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@drawable/edit_text_glass"
+    android:padding="12dp"
+    android:layout_marginBottom="8dp">
+    
+    <!-- Content Section -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginEnd="12dp">
+        
+        <!-- Main Content Text -->
+        <TextView
+            android:id="@+id/content_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Clipboard content here..."
+            android:textColor="@color/text_primary"
+            android:textSize="13sp"
+            android:fontFamily="monospace"
+            android:maxLines="3"
+            android:ellipsize="end"
+            android:lineSpacingMultiplier="1.2"/>
+        
+        <!-- Metadata Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="6dp">
+            
+            <!-- Date -->
+            <TextView
+                android:id="@+id/date_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Dec 25, 2024"
+                android:textColor="@color/text_secondary"
+                android:textSize="10sp"
+                android:layout_marginEnd="8dp"/>
+            
+            <!-- Time -->
+            <TextView
+                android:id="@+id/time_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="12:34:56 PM"
+                android:textColor="@color/text_secondary"
+                android:textSize="10sp"
+                android:layout_marginEnd="12dp"/>
+            
+            <!-- Source App (if available) -->
+            <TextView
+                android:id="@+id/source_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Chrome"
+                android:textColor="@color/text_hint"
+                android:textSize="10sp"
+                android:visibility="gone"/>
+        </LinearLayout>
+    </LinearLayout>
+    
+    <!-- Copy Button -->
+    <FrameLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical">
+        
+        <ImageView
+            android:id="@+id/copy_button"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@drawable/ic_copy"
+            android:tint="@color/off_white"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@drawable/back_button_ripple"
+            android:padding="6dp"/>
+    </FrameLayout>
+</LinearLayout>

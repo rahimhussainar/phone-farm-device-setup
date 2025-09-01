@@ -1,0 +1,481 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background_primary">
+    
+    <!-- Header with Logo and Back Button -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@color/charcoal_dark"
+        android:elevation="4dp"
+        android:paddingTop="24dp"
+        android:paddingBottom="16dp">
+        
+        <!-- Back Button positioned absolutely -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            
+            <!-- Logo centered -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center">
+                
+                <ImageView
+                    android:layout_width="200dp"
+                    android:layout_height="60dp"
+                    android:src="@drawable/doublespeed_logo"
+                    android:scaleType="fitCenter"/>
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Proxy Manager"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    android:layout_marginTop="8dp"
+                    android:letterSpacing="0.05"/>
+            </LinearLayout>
+            
+            <!-- Back button overlaid -->
+            <ImageView
+                android:id="@+id/back_button"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_back_arrow"
+                android:tint="@color/off_white"
+                android:clickable="true"
+                android:focusable="true"
+                android:background="@drawable/back_button_ripple"
+                android:padding="4dp"
+                android:layout_gravity="start|top"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="12dp"/>
+        </FrameLayout>
+    </LinearLayout>
+    
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:background="@color/charcoal_dark">
+        
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="24dp"
+            android:background="@color/charcoal_dark">
+            
+            <!-- Proxy Configuration Section -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="16dp"
+                android:gravity="center_vertical">
+                
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="PROXY CONFIGURATION"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"
+                    android:letterSpacing="0.1"/>
+                
+                <!-- Proxy Status Icon -->
+                <ImageView
+                    android:id="@+id/proxy_status_indicator"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_connection_checking"
+                    android:visibility="gone"/>
+                    
+            </LinearLayout>
+            
+            <!-- SOCKS Address -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/socks_addr"
+                android:textColor="@color/text_primary"
+                android:textSize="12sp"
+                android:layout_marginBottom="8dp"/>
+            <EditText
+                android:id="@+id/socks_addr"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="@style/ModernEditText"
+                android:layout_marginBottom="16dp"
+                android:singleLine="true"/>
+            
+            <!-- SOCKS Port -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/socks_port"
+                android:textColor="@color/text_primary"
+                android:textSize="12sp"
+                android:layout_marginBottom="8dp"/>
+            <EditText
+                android:id="@+id/socks_port"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="@style/ModernEditText"
+                android:layout_marginBottom="16dp"
+                android:singleLine="true"
+                android:inputType="number"/>
+            
+            <!-- Authentication Section -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/gray_dark"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="24dp"/>
+            
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="AUTHENTICATION"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                    android:letterSpacing="0.1"
+                android:layout_marginBottom="16dp"/>
+            
+            <!-- Username -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/socks_user"
+                android:textColor="@color/text_primary"
+                android:textSize="12sp"
+                android:layout_marginBottom="8dp"/>
+            <EditText
+                android:id="@+id/socks_user"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="@style/ModernEditText"
+                android:layout_marginBottom="16dp"
+                android:singleLine="true"/>
+            
+            <!-- Password -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/socks_pass"
+                android:textColor="@color/text_primary"
+                android:textSize="12sp"
+                android:layout_marginBottom="8dp"/>
+            <EditText
+                android:id="@+id/socks_pass"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="@style/ModernEditText"
+                android:layout_marginBottom="16dp"
+                android:singleLine="true"
+                android:inputType="textPassword"/>
+            
+            <!-- DNS Section -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/gray_dark"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="24dp"/>
+            
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="DNS CONFIGURATION"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                    android:letterSpacing="0.1"
+                android:layout_marginBottom="16dp"/>
+            
+            <!-- DNS IPv4 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/dns_ipv4"
+                android:textColor="@color/text_primary"
+                android:textSize="12sp"
+                android:layout_marginBottom="8dp"/>
+            <EditText
+                android:id="@+id/dns_ipv4"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="@style/ModernEditText"
+                android:layout_marginBottom="16dp"
+                android:singleLine="true"
+                android:digits="0123456789."/>
+            
+            <!-- DNS IPv6 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/dns_ipv6"
+                android:textColor="@color/text_primary"
+                android:textSize="12sp"
+                android:layout_marginBottom="8dp"/>
+            <EditText
+                android:id="@+id/dns_ipv6"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="@style/ModernEditText"
+                android:layout_marginBottom="16dp"
+                android:singleLine="true"
+                android:digits="0123456789abcdef:"/>
+            
+            <!-- Options Section -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/gray_dark"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="24dp"/>
+            
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="OPTIONS"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                    android:letterSpacing="0.1"
+                android:layout_marginBottom="16dp"/>
+            
+            <!-- First row of checkboxes -->
+            <LinearLayout
+                android:orientation="horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp">
+                <CheckBox
+                    android:id="@+id/remote_dns"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/remote_dns"
+                    style="@style/ModernCheckBox"/>
+                <CheckBox
+                    android:id="@+id/udp_in_tcp"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/udp_in_tcp"
+                    style="@style/ModernCheckBox"/>
+            </LinearLayout>
+            
+            <!-- Second row of checkboxes -->
+            <LinearLayout
+                android:orientation="horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp">
+                <CheckBox
+                    android:id="@+id/ipv4"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/ipv4"
+                    style="@style/ModernCheckBox"/>
+                <CheckBox
+                    android:id="@+id/ipv6"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/ipv6"
+                    style="@style/ModernCheckBox"/>
+                <CheckBox
+                    android:id="@+id/global"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/global"
+                    style="@style/ModernCheckBox"/>
+            </LinearLayout>
+            
+            <!-- Connection Status Card -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/gray_dark"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="24dp"/>
+            
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="CONNECTION STATUS"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:letterSpacing="0.1"
+                android:layout_marginBottom="16dp"/>
+            
+            <LinearLayout
+                android:id="@+id/connection_status_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/edit_text_glass"
+                android:padding="16dp"
+                android:layout_marginBottom="24dp"
+                android:visibility="gone">
+                
+                <!-- Status Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+                    
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Status"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"/>
+                    
+                    <TextView
+                        android:id="@+id/connection_status_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Connected"
+                        android:textColor="@color/forest_green"
+                        android:textSize="12sp"
+                        android:textStyle="bold"/>
+                </LinearLayout>
+                
+                <!-- Location Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+                    
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Location"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"/>
+                    
+                    <TextView
+                        android:id="@+id/proxy_location"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Boston, MA"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp"/>
+                </LinearLayout>
+                
+                <!-- IP Address Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+                    
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Proxy IP"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"/>
+                    
+                    <TextView
+                        android:id="@+id/proxy_ip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0.0.0.0"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp"
+                        android:fontFamily="monospace"/>
+                </LinearLayout>
+                
+                <!-- Connection Time Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+                    
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Connected for"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"/>
+                    
+                    <TextView
+                        android:id="@+id/connection_time"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="00:00:00"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp"
+                        android:fontFamily="monospace"/>
+                </LinearLayout>
+            </LinearLayout>
+            
+        </LinearLayout>
+    </ScrollView>
+    
+    <!-- Bottom Action Bar -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/charcoal_dark"
+        android:padding="16dp"
+        android:elevation="8dp">
+        
+        <Button
+            android:id="@+id/save"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/save"
+            android:background="@drawable/button_save"
+            android:textColor="@color/off_white"
+            android:textSize="13sp"
+            android:paddingLeft="24dp"
+            android:paddingRight="24dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:minHeight="42dp"
+            android:gravity="center"
+            android:textAllCaps="false"
+            android:layout_marginEnd="8dp"/>
+        
+        <Button
+            android:id="@+id/control"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/control_enable"
+            android:background="@drawable/button_enable"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            android:paddingLeft="24dp"
+            android:paddingRight="24dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
+            android:minHeight="42dp"
+            android:gravity="center"
+            android:textAllCaps="false"
+            android:layout_marginStart="8dp"/>
+    </LinearLayout>
+    
+</LinearLayout>
