@@ -280,24 +280,8 @@ public class MainActivity extends Activity implements View.OnClickListener {
 			boolean isEnable = prefs.getEnable();
 			
 			if (!isEnable) {
-				// Request VPN permission
-				Intent vpnIntent = VpnService.prepare(MainActivity.this);
-				if (vpnIntent != null) {
-					// Need to request VPN permission
-					try {
-						startActivityForResult(vpnIntent, 1); // Use request code 1 for button click
-					} catch (Exception e) {
-						Log.e("MainActivity", "Failed to request VPN permission: " + e.getMessage());
-						Toast.makeText(this, "Failed to request VPN permission. Please try again.", Toast.LENGTH_LONG).show();
-					}
-					return; // Don't proceed until permission is granted
-				}
-				// Permission already granted, proceed to enable
-				prefs.setEnable(true);
-				savePrefs();
-				updateUI();
-				Intent intent = new Intent(this, TProxyService.class);
-				startService(intent.setAction(TProxyService.ACTION_CONNECT));
+				// Check for VPN conflicts and request permission
+				checkAndRequestVpnPermission();
 			} else {
 				// Disable VPN
 				prefs.setEnable(false);
@@ -854,5 +838,100 @@ public class MainActivity extends Activity implements View.OnClickListener {
 				});
 			}
 		}
+	}
+	
+	private void checkAndRequestVpnPermission() {
+		// First check if we can get VPN permission
+		Intent vpnIntent = VpnService.prepare(MainActivity.this);
+		
+		if (vpnIntent != null) {
+			// Need to request VPN permission
+			// Check if this is likely due to another VPN being active
+			try {
+				// Try to determine if another VPN is active
+				android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+				android.net.Network[] networks = cm.getAllNetworks();
+				boolean hasActiveVpn = false;
+				
+				for (android.net.Network network : networks) {
+					android.net.NetworkCapabilities caps = cm.getNetworkCapabilities(network);
+					if (caps != null && caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN)) {
+						hasActiveVpn = true;
+						break;
+					}
+				}
+				
+				if (hasActiveVpn) {
+					// Another VPN is active, show detailed instructions
+					showVpnConflictDialog();
+				} else {
+					// No active VPN detected, try to request permission normally
+					try {
+						startActivityForResult(vpnIntent, 1);
+					} catch (Exception e) {
+						Log.e("MainActivity", "Failed to request VPN permission: " + e.getMessage());
+						// If we still can't request, show the conflict dialog
+						showVpnConflictDialog();
+					}
+				}
+			} catch (Exception e) {
+				// If we can't detect, just try to request permission
+				try {
+					startActivityForResult(vpnIntent, 1);
+				} catch (Exception ex) {
+					Log.e("MainActivity", "Failed to request VPN permission: " + ex.getMessage());
+					showVpnConflictDialog();
+				}
+			}
+		} else {
+			// Permission already granted, proceed to enable
+			prefs.setEnable(true);
+			savePrefs();
+			updateUI();
+			Intent intent = new Intent(this, TProxyService.class);
+			startService(intent.setAction(TProxyService.ACTION_CONNECT));
+		}
+	}
+	
+	private void showVpnConflictDialog() {
+		AlertDialog.Builder builder = new AlertDialog.Builder(this);
+		builder.setTitle("VPN Conflict Detected");
+		builder.setMessage("Another VPN app may be active. To use DoubleSpeed proxy:\n\n" +
+			"1. Go to Settings → Network & Internet → VPN\n" +
+			"2. Disconnect any active VPN\n" +
+			"3. Remove/delete other VPN profiles\n" +
+			"4. Return here and try again\n\n" +
+			"Would you like to open VPN settings now?");
+		
+		builder.setPositiveButton("Open Settings", (dialog, which) -> {
+			// Open VPN settings
+			try {
+				Intent intent = new Intent("android.settings.VPN_SETTINGS");
+				startActivity(intent);
+			} catch (Exception e) {
+				// Fallback to general settings
+				try {
+					Intent intent = new Intent(android.provider.Settings.ACTION_SETTINGS);
+					startActivity(intent);
+				} catch (Exception ex) {
+					Toast.makeText(this, "Please manually open Settings → VPN", Toast.LENGTH_LONG).show();
+				}
+			}
+		});
+		
+		builder.setNegativeButton("Try Anyway", (dialog, which) -> {
+			// Force try to request permission
+			Intent vpnIntent = VpnService.prepare(MainActivity.this);
+			if (vpnIntent != null) {
+				try {
+					startActivityForResult(vpnIntent, 1);
+				} catch (Exception e) {
+					Toast.makeText(this, "Cannot request VPN permission. Please clear other VPN apps first.", Toast.LENGTH_LONG).show();
+				}
+			}
+		});
+		
+		builder.setNeutralButton("Cancel", null);
+		builder.show();
 	}
 }
